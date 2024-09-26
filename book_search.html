@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Search Engine</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            background: black;
+            color: white;
+        }
+        #main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow-y: auto;
+        }
+        #query-images {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+        }
+        .query-image, .result-image {
+            height: 300px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .query-image:hover, .result-image:hover {
+            transform: scale(1.1);
+        }
+        #results {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            padding: 10px;
+            height: calc(100% - 150px);
+            overflow-y: auto;
+        }
+        #side-panel {
+            right: 0;
+            width: 25%;
+            height: 100%;
+            background-color: black;
+            padding: 20px;
+            box-shadow: -2px 0 5px rgba(255, 255, 255, 0.3);
+            overflow-y: auto;
+        }
+        #side-panel h3, #side-panel p {
+            margin: 0;
+            padding: 5px 0;
+        }
+        iframe {
+            width: 100%;
+            height: 500px;
+        }
+        .button {
+            display: none;
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 16px;
+        }
+        #search-link:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="main">
+        <div id="query-images"></div>
+        <div id="results"></div>
+        <div id="bottom-bar">
+            <a href="/" style="color: inherit; text-decoration: underline; font-weight: bold; font-size: inherit;">LayoutFinder</a> 
+            by Impett and Schuwey || UBS / Cambridge / CNRS
+        </div>    </div>
+    <div id="side-panel">
+        <h3 id="title"></h3>
+        <p id="creator"></p>
+        <p id="publisher"></p>
+        <p id="year"></p>
+        <a id="search-link" class="button" href="#" >Find Similar Layouts</a>
+        <a id="archive-link" class="button" href="google.com" target="_blank">Open on Archive</a>
+        <iframe id="book-iframe" src="" frameborder="0" webkitallowfullscreen="true" mozallowfullscreen="true" allowfullscreen></iframe>
+    </div>
+    <script>
+
+        const preloaded_queries = [
+            'BIUSante_30728_page_15.jpg', 
+            'bub_gb_J8CynHo6GWAC_page_15.jpg', 
+            'bub_gb_Dgzr79ilpn0C_page_30.jpg', 
+            'bub_gb_8lR-fPbyB_YC_page_30.jpg', 
+            'bub_gb_ss-0C6fux3UC_page_15.jpg'
+        ];
+
+
+
+        // URL to fetch nearest neighbors data
+        const nearestNeighborsURL = './nearest_neighbors.json'; 
+
+
+
+        // Function to get URL parameters
+        function getQueryParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('query');
+        }
+
+        // Function to fetch and display nearest neighbors data
+        async function fetchAndDisplayNeighbors() {
+                try {
+                    const response = await fetch(nearestNeighborsURL);
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    const data = await response.json();
+
+                    const queryParam = getQueryParams(); // Get the query parameter from URL
+                    if (queryParam) {
+                        // Load specific image based on query parameter
+                        const [bookId, pageNumber] = queryParam.split('_page_');
+                        const queryImage = `${bookId}_page_${pageNumber}.jpg`;
+
+                        if (data[queryImage]) {
+                            displayQueryImages(data, [queryImage]); // Display only the queried image at the top
+                            displayResults(data[queryImage], queryImage); // Display nearest neighbors for the queried image
+                        } else {
+                            console.error('Query image not found in data:', queryImage);
+                        }
+                    } else {
+                        // Display predefined images using preloaded_queries
+                        displayQueryImages(data, preloaded_queries);
+                    }
+                } catch (error) {
+                    console.error('Error fetching nearest neighbors data:', error);
+                }
+            }
+
+
+        // Display query images at the top
+        function displayQueryImages(data, images = null) {
+            const queryImagesDiv = document.getElementById('query-images');
+            queryImagesDiv.innerHTML = ''; // Clear previous images
+
+            const queryImages = images || Object.keys(data).sort(() => 0.5 - Math.random()).slice(0, 5); // Use provided images or select 5 random ones
+            queryImages.forEach(image => {
+                const img = document.createElement('img');
+                const bookId = image.split('_page_')[0];
+                const pageNumber = image.split('_page_')[1].replace('.jpg', '');
+                img.src = `https://iiif.archivelab.org/iiif/${bookId}$${pageNumber}/full/512,/0/default.jpg`;
+                img.className = 'query-image';
+                img.alt = image;
+                img.addEventListener('click', () => displayResults(data[image], image));
+                queryImagesDiv.appendChild(img);
+            });
+        }
+
+        // Display similar images below the selected query image
+        function displayResults(similarImages, queryImage) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = ''; // Clear previous results
+
+            similarImages.forEach(item => {
+                const img = document.createElement('img');
+                const bookId = item['image'].split('_page_')[0];
+                const pageNumber = item['image'].split('_page_')[1].replace('.jpg', '');
+                img.src = `https://iiif.archivelab.org/iiif/${bookId}$${pageNumber}/full/512,/0/default.jpg`;
+                img.className = 'result-image';
+                img.alt = item.image;
+                img.addEventListener('click', () => openSidebar(item.image));
+                resultsDiv.appendChild(img);
+            });
+
+            openSidebar(queryImage); // Show metadata for the clicked query image
+        }
+
+        // Function to open sidebar with metadata
+        function openSidebar(image) {
+            const bookId = image.split('_page_')[0];
+            const pageNumber = image.split('_page_')[1].replace('.jpg', '');
+
+            fetchAndDisplayMetadata(bookId);
+
+            const bookIframe = document.getElementById('book-iframe');
+            bookIframe.src = `https://archive.org/embed/${bookId}#${pageNumber}`;
+            document.getElementById('side-panel').style.display = 'block';
+            // Update search link with URL
+            // change ("search-link") css display to inline-block
+            document.getElementById("search-link").style.display = "inline-block";
+            document.getElementById("search-link").href = `${window.location.origin}${window.location.pathname}?query=${bookId}_page_${pageNumber}`;
+            document.getElementById("archive-link").style.display = "inline-block";
+            document.getElementById("archive-link").href = `https://archive.org/details/${bookId}/${pageNumber}`;
+        }
+
+        // Fetch metadata from archive.org
+        function fetchAndDisplayMetadata(bookId) {
+            const metadataUrl = `https://archive.org/metadata/${bookId}`;
+            fetch(metadataUrl)
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
+                .then(data => {
+                    if (!data.metadata) {
+                        console.error('Metadata is missing from the response:', data);
+                        return;
+                    }
+
+                    // Extract metadata fields
+                    const creator = data.metadata.creator || "Unknown";
+                    const title = data.metadata.title || "Unknown";
+                    const publisher = data.metadata.publisher || "Unknown";
+                    const year = data.metadata.year || "Unknown";
+
+                    // Update side panel with metadata information
+                    document.getElementById("title").textContent = `${title}`;
+                    document.getElementById("creator").textContent = `${creator}`;
+                    document.getElementById("publisher").textContent = `${publisher}`;
+                    document.getElementById("year").textContent = `${year}`;
+                })
+                .catch(error => {
+                    console.error('Error fetching metadata:', error);
+                });
+        }
+
+        // Initialize the search engine
+        fetchAndDisplayNeighbors();
+    </script>
+</body>
+</html>
